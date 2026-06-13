@@ -1,0 +1,150 @@
+### =============================================
+### Truck & Roll - API REST - Pruebas de endpoints
+### Usar con la extensión "REST Client" de VS Code
+### =============================================
+### FLUJO: Login → Productos → Registrar pedido → Pagar →
+###        Cocina prepara → Pantalla de retiro → Cliente retira
+### =============================================
+
+@baseUrl = http://127.0.0.1:8000
+
+### ─── 1. AUTH ──────────────────────────────────────
+
+### RF-001: Login (obtiene el token de acceso)
+# IMPORTANTE: copiar el "access_token" de la respuesta y pegarlo
+# en la variable @token más abajo para los siguientes requests
+POST {{baseUrl}}/auth/login
+Content-Type: application/x-www-form-urlencoded
+
+username=cajero1&password=cajero123
+
+###
+
+### Pegar acá el token obtenido en el login anterior SIN LAS COMILLAS
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjYWplcm8xIiwiZXhwIjoxNzgxMzg5NDQ1fQ.M-CPNG9AcQZcwcQ9mm0QAEVGnOtV2g_tPnF1LwlgsuA
+
+### ─── 2. PRODUCTOS ──────────────────────────────────────
+
+### Listar productos disponibles (lo que ve el cajero como disponible antes de armar un pedido)
+GET {{baseUrl}}/productos/disponibles
+Authorization: Bearer {{token}}
+
+###
+
+### Listar todos los productos (vista del administrador)
+GET {{baseUrl}}/productos/todos
+Authorization: Bearer {{token}}
+
+###
+
+### Crear un nuevo producto
+POST {{baseUrl}}/productos/
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "id": 0,
+  "nombre": "Pancho Especial",
+  "descripcion": "Pancho con papas pisadas y salsas",
+  "precio": 280.0,
+  "disponible": true
+}
+
+###
+
+### Activar/desactivar disponibilidad de un producto
+PATCH {{baseUrl}}/productos/1/disponibilidad
+Authorization: Bearer {{token}}
+
+### ─── 3. REGISTRAR PEDIDO (PUC 1) ──────────────────────────────────────
+
+### RF-002: Registrar un nuevo pedido
+# IMPORTANTE: anotar el "id" que devuelve la respuesta y reemplazar
+# el número 6 en todos los bloques siguientes por ese id
+POST {{baseUrl}}/pedidos/
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre_cliente": "Lucía Fernández",
+  "detalles": [
+    {
+      "producto_id": 2,
+      "cantidad": 1,
+      "observaciones": "bien cocida"
+    },
+    {
+      "producto_id": 4,
+      "cantidad": 2,
+      "observaciones": null
+    }
+  ]
+}
+
+###
+
+### Obtener un pedido por ID (estado inicial: REGISTRADO)
+GET {{baseUrl}}/pedidos/6
+Authorization: Bearer {{token}}
+
+### ─── 4. PROCESAR PAGO (PUC 2) ──────────────────────────────────────
+
+### RF-003: Procesar pago con TARJETA
+# Esto cambia automáticamente el estado del pedido a PAGADO
+POST {{baseUrl}}/pagos/6
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "metodo": "TARJETA"
+}
+
+###
+
+### RF-003 (alternativa): Procesar pago con EFECTIVO
+# Usar este en vez del anterior si se quiere probar el otro método de pago
+# (requiere un pedido distinto en estado REGISTRADO)
+POST {{baseUrl}}/pagos/6
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "metodo": "EFECTIVO"
+}
+
+### ─── 5. COCINA PREPARA EL PEDIDO ──────────────────────────────────────
+
+### RF-006: Ver pedidos en cocina (debe aparecer el pedido recién pagado)
+GET {{baseUrl}}/pedidos/cocina/ver
+Authorization: Bearer {{token}}
+
+###
+
+### RF-005: Cocina marca el pedido como EN_PREPARACION
+PATCH {{baseUrl}}/pedidos/6/estado?nuevo_estado=EN_PREPARACION
+Authorization: Bearer {{token}}
+
+###
+
+### RF-005: Cocina termina y marca el pedido como LISTO
+PATCH {{baseUrl}}/pedidos/6/estado?nuevo_estado=LISTO
+Authorization: Bearer {{token}}
+
+### ─── 6. NOTIFICAR RETIRO (PUC 3) ──────────────────────────────────────
+
+### RF-007: Ver pantalla de retiro (debe aparecer el pedido en estado LISTO)
+GET {{baseUrl}}/pedidos/listos/ver
+Authorization: Bearer {{token}}
+
+###
+
+### RF-005: Cajero confirma que el cliente retiró el pedido
+PATCH {{baseUrl}}/pedidos/6/estado?nuevo_estado=RETIRADO
+Authorization: Bearer {{token}}
+
+### ─── 7. VALIDACIÓN DE TRANSICIONES (Patrón STATE) ──────────────────────────────────────
+
+### Intentar volver de RETIRADO a PAGADO (debe devolver error 400)
+# Esto demuestra que el sistema no permite transiciones de estado inválidas
+PATCH {{baseUrl}}/pedidos/6/estado?nuevo_estado=PAGADO
+Authorization: Bearer {{token}}
