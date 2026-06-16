@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.models import Producto
+from app.models.models import Producto, RolEmpleado
 from app.schemas.schemas import ProductoResponse
 from app.models.models import Empleado
 from app.routers.auth import get_empleado_actual
@@ -21,6 +21,9 @@ def listar_todos(db: Session = Depends(get_db), empleado: Empleado = Depends(get
 # POST /productos — crear producto
 @router.post("/", response_model=ProductoResponse)
 def crear_producto(producto: ProductoResponse, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
+    if empleado.rol != RolEmpleado.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede crear productos")
+
     nuevo = Producto(
         nombre=producto.nombre,
         descripcion=producto.descripcion,
@@ -42,3 +45,39 @@ def toggle_disponibilidad(id: int, db: Session = Depends(get_db), empleado: Empl
     db.commit()
     db.refresh(producto)
     return producto
+
+# PUT /productos/{id} — modificar producto (solo ADMIN)
+@router.put("/{id}", response_model=ProductoResponse)
+def modificar_producto(id: int, producto_data: ProductoResponse, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
+    if empleado.rol != RolEmpleado.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede modificar productos")
+
+    producto = db.query(Producto).filter(Producto.id == id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    if producto_data.id != id:
+        raise HTTPException(status_code=400, detail="El id del body debe coincidir con el id de la URL")
+
+    producto.nombre = producto_data.nombre
+    producto.descripcion = producto_data.descripcion
+    producto.precio = producto_data.precio
+    producto.disponible = producto_data.disponible
+
+    db.commit()
+    db.refresh(producto)
+    return producto
+
+# DELETE /productos/{id} — eliminar producto (solo ADMIN)
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_producto(id: int, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
+    if empleado.rol != RolEmpleado.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede eliminar productos")
+
+    producto = db.query(Producto).filter(Producto.id == id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    db.delete(producto)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
