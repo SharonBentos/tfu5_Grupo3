@@ -87,24 +87,31 @@ La API estará disponible en `http://127.0.0.1:8000`.
 
 ## Endpoints disponibles
 
-| Método | Endpoint                        | Descripción                         |Auth|
-|--------|---------------------------------|-------------------------------------|----|
-| `POST` | `/auth/login`                   | Iniciar sesión (devuelve token JWT) | No |
-| `GET`  | `/productos/disponibles`        | Listar productos disponibles        | Sí |
-| `GET`  | `/productos/todos`              | Listar todos los productos          | Sí |
-| `POST` | `/productos/`                   | Crear producto                      | Sí |
-| `PATCH`| `/productos/{id}/disponibilidad`| Activar/desactivar producto         | Sí |
-| `POST` | `/pedidos/`                     | Registrar pedido (RF-002)           | Sí |
-| `GET`  | `/pedidos/{id}`                 | Ver pedido por ID                   | Sí |
-| `PATCH`| `/pedidos/{id}/estado`          | Cambiar estado (RF-005)             | Sí |
-| `GET`  | `/pedidos/cocina/ver`           | Pedidos en cocina (RF-006)          | Sí |
-| `GET`  | `/pedidos/listos/ver`           | Pedidos listos para retirar (RF-007)| Sí |
-| `POST` | `/pagos/{pedido_id}`            | Procesar pago (RF-003)              | Sí |
+| Método   | Endpoint                          | Descripción                                                                 | Auth |
+|----------|-----------------------------------|-----------------------------------------------------------------------------|------|
+| `POST`   | `/auth/login`                     | Iniciar sesión (devuelve token JWT)                                        | No   |
+| `GET`    | `/productos/disponibles`          | Listar productos disponibles                                                | Sí   |
+| `GET`    | `/productos/todos`                | Listar todos los productos                                                  | Sí   |
+| `POST`   | `/productos/`                     | Crear producto. Solo ADMIN                                                  | Sí   |
+| `PUT`    | `/productos/{id}`                 | Modificar producto. Solo ADMIN                                              | Sí   |
+| `DELETE` | `/productos/{id}`                 | Eliminar producto. Solo ADMIN                                               | Sí   |
+| `PATCH`  | `/productos/{id}/disponibilidad`   | Activar o desactivar un producto                                            | Sí   |
+| `POST`   | `/pedidos/`                       | Registrar pedido (RF-002)                                                   | Sí   |
+| `GET`    | `/pedidos/`                       | Listar pedidos activos                                                       | Sí   |
+| `GET`    | `/pedidos/{identificador}`        | Ver pedido por identificador. Puede ser el ID numérico o el número `TRK-XXXX` | Sí   |
+| `PUT`    | `/pedidos/{identificador}/editar` | Editar pedido por identificador                                             | Sí   |
+| `PATCH`  | `/pedidos/{identificador}/editar` | Editar pedido por identificador                                             | Sí   |
+| `PATCH`  | `/pedidos/{identificador}/estado` | Cambiar estado (RF-005) por identificador                                   | Sí   |
+| `GET`    | `/pedidos/cocina/ver`             | Pedidos en cocina (RF-006)                                                  | Sí   |
+| `GET`    | `/pedidos/listos/ver`             | Pedidos listos para retirar (RF-007)                                        | Sí   |
+| `POST`   | `/pagos/{pedido_id}`              | Procesar pago (RF-003)                                                      | Sí   |
+
+En los endpoints de pedidos, `identificador` puede ser el `id` numérico o el número de seguimiento con formato `TRK-XXXX`.
 
 ### Estados del pedido y transiciones válidas (RF-005)
 
 REGISTRADO → PAGADO → EN_PREPARACION → LISTO → RETIRADO
-     ↓           ↓            ↓
+        ↓           ↓            ↓
     CANCELADO (desde cualquiera de los tres primeros)
 
 Cualquier otra transición devuelve error `400 Bad Request`.
