@@ -47,10 +47,22 @@ def registrar_pedido(request: PedidoRequest, db: Session = Depends(get_db), empl
     db.refresh(pedido)
     return pedido
 
-# GET /pedidos/{id} — obtener pedido por ID
-@router.get("/{id}", response_model=PedidoResponse)
-def obtener_pedido(id: int, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
-    pedido = db.query(Pedido).filter(Pedido.id == id).first()
+# GET /pedidos/{identificador} — obtener pedido por ID o número de seguimiento (TRK-XXXX)
+@router.get("/{identificador}", response_model=PedidoResponse)
+def obtener_pedido(identificador: str, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
+    pedido = None
+    
+    # Buscar por número de seguimiento si tiene formato TRK-XXXX
+    if identificador.startswith("TRK-"):
+        pedido = db.query(Pedido).filter(Pedido.numero_seguimiento == identificador).first()
+    else:
+        # Intentar buscar por ID (debe ser un número)
+        try:
+            pedido_id = int(identificador)
+            pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+        except ValueError:
+            pass
+    
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     return pedido
