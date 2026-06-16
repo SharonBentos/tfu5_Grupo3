@@ -121,10 +121,10 @@ def editar_pedido(
     db.refresh(pedido)
     return pedido
 
-# RF-005: PATCH /pedidos/{id}/estado — cambiar estado
-@router.patch("/{id}/estado", response_model=PedidoResponse)
-def cambiar_estado(id: int, nuevo_estado: EstadoPedido, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
-    pedido = db.query(Pedido).filter(Pedido.id == id).first()
+# RF-005: PATCH /pedidos/{identificador}/estado — cambiar estado por ID o TRK-XXXX
+@router.patch("/{identificador}/estado", response_model=PedidoResponse)
+def cambiar_estado(identificador: str, nuevo_estado: EstadoPedido, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
+    pedido = buscar_pedido_por_identificador(db, identificador)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
 
