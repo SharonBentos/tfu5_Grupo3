@@ -13,6 +13,17 @@ router = APIRouter(prefix="/pedidos", tags=["Pedidos"])
 def generar_numero_seguimiento():
     return "TRK-" + str(uuid.uuid4())[:4].upper()
 
+def buscar_pedido_por_identificador(db: Session, identificador: str):
+    if identificador.startswith("TRK-"):
+        return db.query(Pedido).filter(Pedido.numero_seguimiento == identificador).first()
+
+    try:
+        pedido_id = int(identificador)
+    except ValueError:
+        return None
+
+    return db.query(Pedido).filter(Pedido.id == pedido_id).first()
+
 # RF-002: POST /pedidos — registrar nuevo pedido
 @router.post("/", response_model=PedidoResponse)
 def registrar_pedido(request: PedidoRequest, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
@@ -47,30 +58,73 @@ def registrar_pedido(request: PedidoRequest, db: Session = Depends(get_db), empl
     db.refresh(pedido)
     return pedido
 
+# GET /pedidos — listar pedidos activos (no cancelados ni retirados)
+@router.get("/", response_model=list[PedidoResponse])
+def listar_pedidos_activos(db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
+    return db.query(Pedido).filter(Pedido.estado != EstadoPedido.CANCELADO, Pedido.estado != EstadoPedido.RETIRADO).all()
+
 # GET /pedidos/{identificador} — obtener pedido por ID o número de seguimiento (TRK-XXXX)
 @router.get("/{identificador}", response_model=PedidoResponse)
 def obtener_pedido(identificador: str, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
-    pedido = None
-    
-    # Buscar por número de seguimiento si tiene formato TRK-XXXX
-    if identificador.startswith("TRK-"):
-        pedido = db.query(Pedido).filter(Pedido.numero_seguimiento == identificador).first()
-    else:
-        # Intentar buscar por ID (debe ser un número)
-        try:
-            pedido_id = int(identificador)
-            pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
-        except ValueError:
-            pass
-    
+    pedido = buscar_pedido_por_identificador(db, identificador)
+
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     return pedido
 
-# RF-005: PATCH /pedidos/{id}/estado — cambiar estado
-@router.patch("/{id}/estado", response_model=PedidoResponse)
-def cambiar_estado(id: int, nuevo_estado: EstadoPedido, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
-    pedido = db.query(Pedido).filter(Pedido.id == id).first()
+# PATCH/PUT /pedidos/{identificador}/editar — editar pedido solo en estado REGISTRADO
+@router.patch("/{identificador}/editar", response_model=PedidoResponse)
+@router.put("/{identificador}/editar", response_model=PedidoResponse)
+def editar_pedido(
+    identificador: str,
+    request: PedidoRequest,
+    db: Session = Depends(get_db),
+    empleado: Empleado = Depends(get_empleado_actual)
+):
+    pedido = buscar_pedido_por_identificador(db, identificador)
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    if pedido.estado != EstadoPedido.REGISTRADO:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede editar un pedido en estado REGISTRADO"
+        )
+
+    pedido.nombre_cliente = request.nombre_cliente
+
+    db.query(DetallePedido).filter(DetallePedido.pedido_id == pedido.id).delete(synchronize_session=False)
+
+    total = 0.0
+    for detalle_req in request.detalles:
+        if detalle_req.cantidad < 0:
+            raise HTTPException(status_code=400, detail="La cantidad no puede ser inferior a 0")
+
+        producto = db.query(Producto).filter(Producto.id == detalle_req.producto_id).first()
+        if not producto:
+            raise HTTPException(status_code=404, detail=f"Producto {detalle_req.producto_id} no encontrado")
+        if not producto.disponible:
+            raise HTTPException(status_code=400, detail=f"Producto {producto.nombre} no disponible")
+
+        detalle = DetallePedido(
+            pedido_id=pedido.id,
+            producto_id=producto.id,
+            cantidad=detalle_req.cantidad,
+            precio_unitario=producto.precio,
+            observaciones=detalle_req.observaciones
+        )
+        db.add(detalle)
+        total += producto.precio * detalle_req.cantidad
+
+    pedido.total = total
+    db.commit()
+    db.refresh(pedido)
+    return pedido
+
+# RF-005: PATCH /pedidos/{identificador}/estado — cambiar estado por ID o TRK-XXXX
+@router.patch("/{identificador}/estado", response_model=PedidoResponse)
+def cambiar_estado(identificador: str, nuevo_estado: EstadoPedido, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
+    pedido = buscar_pedido_por_identificador(db, identificador)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
 
