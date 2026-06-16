@@ -21,6 +21,9 @@ def listar_todos(db: Session = Depends(get_db), empleado: Empleado = Depends(get
 # POST /productos — crear producto
 @router.post("/", response_model=ProductoResponse)
 def crear_producto(producto: ProductoResponse, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
+    if empleado.rol != RolEmpleado.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede crear productos")
+
     nuevo = Producto(
         nombre=producto.nombre,
         descripcion=producto.descripcion,
