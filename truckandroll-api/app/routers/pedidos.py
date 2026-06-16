@@ -58,10 +58,10 @@ def registrar_pedido(request: PedidoRequest, db: Session = Depends(get_db), empl
     db.refresh(pedido)
     return pedido
 
-# GET /pedidos — listar pedidos activos (no cancelados)
+# GET /pedidos — listar pedidos activos (no cancelados ni retirados)
 @router.get("/", response_model=list[PedidoResponse])
 def listar_pedidos_activos(db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
-    return db.query(Pedido).filter(Pedido.estado != EstadoPedido.CANCELADO).all()
+    return db.query(Pedido).filter(Pedido.estado != EstadoPedido.CANCELADO, Pedido.estado != EstadoPedido.RETIRADO).all()
 
 # GET /pedidos/{identificador} — obtener pedido por ID o número de seguimiento (TRK-XXXX)
 @router.get("/{identificador}", response_model=PedidoResponse)
