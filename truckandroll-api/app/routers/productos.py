@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.models import Producto
+from app.models.models import Producto, RolEmpleado
 from app.schemas.schemas import ProductoResponse
 from app.models.models import Empleado
 from app.routers.auth import get_empleado_actual
@@ -42,3 +42,17 @@ def toggle_disponibilidad(id: int, db: Session = Depends(get_db), empleado: Empl
     db.commit()
     db.refresh(producto)
     return producto
+
+# DELETE /productos/{id} — eliminar producto (solo ADMIN)
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_producto(id: int, db: Session = Depends(get_db), empleado: Empleado = Depends(get_empleado_actual)):
+    if empleado.rol != RolEmpleado.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede eliminar productos")
+
+    producto = db.query(Producto).filter(Producto.id == id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    db.delete(producto)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
